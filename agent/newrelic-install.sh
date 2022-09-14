@@ -136,7 +136,7 @@ if [ -z "${ostype}" ]; then
   tus=`uname -s 2> /dev/null`
   case "${tus}" in
     [Dd][Aa][Rr][Ww][Ii][Nn])     ostype=unsupported_os ;;
-    [Ff][Rr][Ee][Ee][Bb][Ss][Dd]) ostype=freebsd ;;
+    [Ff][Rr][Ee][Ee][Bb][Ss][Dd]) ostype=unsupported_os ;;
     [Ss][Uu][Nn][Oo][Ss])         ostype=unsupported_os ;;
     [Ss][Mm][Aa][Rr][Tt][Oo][Ss]) ostype=unsupported_os ;;
   esac
@@ -298,13 +298,6 @@ for d in "${ilibdir}/scripts" "${ilibdir}/agent" "${xtradir}"; do
 done
 
 check_dir "${ilibdir}/agent/${arch}"
-if [ -z "${ispkg}" ] && [ "${arch}" = "x64" ]; then
-  # Only check for x86 directory on supported platforms.
-  case "$ostype" in
-    alpine|darwin|freebsd) ;;
-    *) check_dir "${ilibdir}/agent/x86" ;;
-  esac
-fi
 
 if [ -n "${dmissing}" ]; then
   echo "ERROR: the following directories could not be found:" >&2
@@ -336,19 +329,7 @@ for pmv in "20121212" "20131226" "20151012" "20160303" "20170718" \
   if [ "${arch}" = "x64" ]; then
     if [ "${pmv}" -lt "20200930" ]; then
       check_file "${ilibdir}/agent/${arch}/newrelic-${pmv}.so"
-      check_file "${ilibdir}/agent/${arch}/newrelic-${pmv}-zts.so"
     fi
-  fi
-
-  if [ -z "${ispkg}" ] && [ "${arch}" = "x64" ] && [ "${pmv}" -lt "20200930" ]; then
-    # Only check for x86 agent files on supported platforms.
-    case "$ostype" in
-      alpine|darwin|freebsd) ;;
-      *)
-	check_file "${ilibdir}/agent/x86/newrelic-${pmv}.so"
-	check_file "${ilibdir}/agent/x86/newrelic-${pmv}-zts.so"
-	;;
-    esac
   fi
 done
 
@@ -462,6 +443,11 @@ echo "NRVERSION: ${nrversion}" >> $nrilog
 # Gather system information and store it in the sysinfo file.
 #
 echo "NR_INSTALL_LOCATION: ${NR_INSTALL_LOCATION}" >> $nrsysinfo
+if [ "${arch}" = "x86" ]; then
+  echo "An unsupported architecture "${arch}" detected."
+  echo "The install will now exit."
+  exit 1
+fi
 echo "ARCH: ${arch}" >> $nrsysinfo
 nruname=`uname -a 2>/dev/null`
 echo "UNAME: $nruname" >> $nrsysinfo
@@ -1113,7 +1099,7 @@ Ignoring this particular instance of PHP.
 
   # Check if this is a supported arch
   # Should be caught on startup but add check here to be sure
-  if [ "${pi_arch}" != "x86" -a "${pi_arch}" != "x64" ]; then
+  if [ "${pi_arch}" != "x64" ]; then
     error "An unsupported architecture "${pi_arch}" detected."
     echo "The install will now exit."
     exit 1
@@ -1135,7 +1121,6 @@ Ignoring this particular instance of PHP.
       for pmv in "20121212" "20131226" "20151012" "20160303" "20170718" "20180731" \
       "20190902" "20200930" "20210902"; do
         check_file "${ilibdir}/agent/x86/newrelic-${pmv}.so"
-        check_file "${ilibdir}/agent/x86/newrelic-${pmv}-zts.so"
       done
       if [ -n "${fmissing}" ]; then
         echo "ERROR: the following files could not be found:" >&2
@@ -1287,6 +1272,12 @@ does not exist. This particular instance of PHP will be skipped.
     fi
   fi
   log "${pdir}: pi_zts=${pi_zts}"
+  if [ "$pi_zts" = "yes" ]; then
+    echo "An unsupported PHP ZTS build has been detected. Please refer to this link: "
+    echo "https://docs.newrelic.com/docs/apm/agents/php-agent/getting-started/php-agent-compatibility-requirements/ "
+    echo "to view compatibilty requirements for the the New Relic PHP agent. Thank you."
+    exit 1
+  fi
 
 #
 # This is where we figure out where to put the ini file, if at all. We only do
